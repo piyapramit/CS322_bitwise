@@ -1,4 +1,5 @@
 """
+BITWISE
 SPI - Simple Pascal Interpreter - Part 8
 https://ruslanspivak.com/lsbasi-part8/
 with additional modifications by Brian Borowski
@@ -17,8 +18,8 @@ with additional modifications by Brian Borowski
 #
 # EOF (end-of-file) token is used to indicate that
 # there is no more input left for lexical analysis
-INTEGER, FLOAT, PLUS, MINUS, MUL, DIV, LPAREN, RPAREN, EOF, CARRET, AMPERSAND = (
-    'INTEGER', 'FLOAT', 'PLUS', 'MINUS', 'MUL', 'DIV', '(', ')', 'EOF', 'CARRET', 'AMPERSAND'
+INTEGER, FLOAT, PLUS, MINUS, MUL, DIV, LPAREN, RPAREN, EOF, CARRET, AMPERSAND, PIPE, TILDA = (
+    'INTEGER', 'FLOAT', 'PLUS', 'MINUS', 'MUL', 'DIV', '(', ')', 'EOF', 'CARRET', 'AMPERSAND', 'PIPE', 'TILDA'
 )
 
 
@@ -114,6 +115,18 @@ class Lexer(object):
             if self.current_char == '^':
                 self.advance()
                 return Token(CARRET, '^')
+            
+            if self.current_char == '&':
+                self.advance()
+                return Token(AMPERSAND, '&')
+            
+            if self.current_char == '|':
+                self.advance()
+                return Token(PIPE, '|')
+            
+            if self.current_char == '~':
+                self.advance()
+                return Token(TILDA, '~')
 
             if self.current_char == '-':
                 self.advance()
@@ -191,7 +204,7 @@ class Parser(object):
     def factor(self):
         """factor : (PLUS | MINUS) factor | INTEGER | FLOAT | LPAREN expr RPAREN"""
         token = self.current_token
-        if token.type == PLUS or token.type == MINUS or token.type == CARRET:
+        if token.type == PLUS or token.type == MINUS or token.type == TILDA: #or token.type == CARRET or token.type == AMPERSAND:
             self.eat(token.type)
             node = UnaryOp(token, self.factor())
             return node
@@ -211,13 +224,18 @@ class Parser(object):
         """term : factor ((MUL | DIV) factor)*"""
         node = self.factor()
 
-        while self.current_token.type in (MUL, DIV):
+        while self.current_token.type in (MUL, DIV, CARRET, AMPERSAND, PIPE):
             token = self.current_token
             if token.type == MUL:
                 self.eat(MUL)
             elif token.type == DIV:
                 self.eat(DIV)
-
+            elif token.type == CARRET:
+                self.eat(CARRET)
+            elif token.type == AMPERSAND:
+                self.eat(AMPERSAND)
+            elif token.type == PIPE:
+                self.eat(PIPE)
             node = BinOp(left=node, op=token, right=self.factor())
 
         return node
@@ -230,14 +248,14 @@ class Parser(object):
         """
         node = self.term()
 
-        while self.current_token.type in (PLUS, MINUS, CARRET):
+        while self.current_token.type in (PLUS, MINUS, TILDA):
             token = self.current_token
             if token.type == PLUS:
                 self.eat(PLUS)
             elif token.type == MINUS:
                 self.eat(MINUS)
-            elif token.type == CARRET:
-                self.eat(CARRET)
+            elif token.type == TILDA:
+                self.eat(TILDA)
 
             node = BinOp(left=node, op=token, right=self.term())
 
@@ -283,7 +301,10 @@ class Interpreter(NodeVisitor):
             return self.visit(node.left) // self.visit(node.right)
         elif node.op.type == CARRET:
             return self.visit(node.left) ^ self.visit(node.right)
-
+        elif node.op.type == AMPERSAND:
+            return self.visit(node.left) & self.visit(node.right)
+        elif node.op.type == PIPE:
+            return self.visit(node.left) | self.visit(node.right)
     def visit_Num(self, node):
         return node.value
 
@@ -293,7 +314,8 @@ class Interpreter(NodeVisitor):
             return +self.visit(node.expr)
         elif op == MINUS:
             return -self.visit(node.expr)
-        
+        elif op == TILDA:
+            return -1*self.visit(node.expr)
 
     def interpret(self):
         tree = self.parser.parse()
