@@ -224,14 +224,12 @@ class Parser(object):
         """term : factor ((MUL | DIV) factor)*"""
         node = self.factor()
 
-        while self.current_token.type in (MUL, DIV, CARRET, AMPERSAND, PIPE):
+        while self.current_token.type in (MUL, DIV, AMPERSAND, PIPE):
             token = self.current_token
             if token.type == MUL:
                 self.eat(MUL)
             elif token.type == DIV:
                 self.eat(DIV)
-            elif token.type == CARRET:
-                self.eat(CARRET)
             elif token.type == AMPERSAND:
                 self.eat(AMPERSAND)
             elif token.type == PIPE:
@@ -239,6 +237,7 @@ class Parser(object):
             node = BinOp(left=node, op=token, right=self.factor())
 
         return node
+    #lower priority calls the higher priority
 
     def expr(self):
         """
@@ -260,9 +259,23 @@ class Parser(object):
             node = BinOp(left=node, op=token, right=self.term())
 
         return node
-
-    def parse(self):
+    def xor(self):
+        """
+        expr   : term ((PLUS | MINUS) term)*
+        term   : factor ((MUL | DIV) factor)*
+        factor : (PLUS | MINUS) factor | INTEGER | LPAREN expr RPAREN
+        """
         node = self.expr()
+
+        while self.current_token.type == CARRET:
+            token = self.current_token
+            self.eat(CARRET)
+
+            node = BinOp(left=node, op=token, right=self.expr())
+
+        return node
+    def parse(self):
+        node = self.xor()
         if self.current_token.type != EOF:
             self.error()
         return node
@@ -315,7 +328,7 @@ class Interpreter(NodeVisitor):
         elif op == MINUS:
             return -self.visit(node.expr)
         elif op == TILDA:
-            return -1*self.visit(node.expr)
+            return ~self.visit(node.expr)
 
     def interpret(self):
         tree = self.parser.parse()
