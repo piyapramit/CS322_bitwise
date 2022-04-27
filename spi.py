@@ -1,5 +1,5 @@
 """
-BITWISE
+BITWISE Operation
 SPI - Simple Pascal Interpreter - Part 8
 https://ruslanspivak.com/lsbasi-part8/
 with additional modifications by Brian Borowski
