@@ -1,5 +1,5 @@
 """
-BITWISE
+BITWISE Operation
 SPI - Simple Pascal Interpreter - Part 8
 https://ruslanspivak.com/lsbasi-part8/
 with additional modifications by Brian Borowski
@@ -18,8 +18,8 @@ with additional modifications by Brian Borowski
 #
 # EOF (end-of-file) token is used to indicate that
 # there is no more input left for lexical analysis
-INTEGER, FLOAT, PLUS, MINUS, MUL, DIV, LPAREN, RPAREN, EOF, CARRET, AMPERSAND, PIPE, TILDA = (
-    'INTEGER', 'FLOAT', 'PLUS', 'MINUS', 'MUL', 'DIV', '(', ')', 'EOF', 'CARRET', 'AMPERSAND', 'PIPE', 'TILDA'
+INTEGER, FLOAT, PLUS, MINUS, MUL, DIV, LPAREN, RPAREN, EOF, CARRET, AMPERSAND, PIPE, TILDA, LEFTSHIFT, RIGHTSHIFT = (
+    'INTEGER', 'FLOAT', 'PLUS', 'MINUS', 'MUL', 'DIV', '(', ')', 'EOF', 'CARRET', 'AMPERSAND', 'PIPE', 'TILDA', 'LEFTSHIFT', 'RIGHTSHIFT'
 )
 
 
@@ -148,6 +148,18 @@ class Lexer(object):
                 self.advance()
                 return Token(RPAREN, ')')
 
+            if self.current_char == '<':
+                self.advance()
+                if self.current_char == '<':
+                    self.advance()
+                    return Token(LEFTSHIFT, '<<')
+            
+            if self.current_char == '>':
+                self.advance()
+                if self.current_char == '>':
+                    self.advance()
+                    return Token(RIGHTSHIFT, '>>')
+
             self.error()
 
         return Token(EOF, None)
@@ -224,21 +236,16 @@ class Parser(object):
         """term : factor ((MUL | DIV) factor)*"""
         node = self.factor()
 
-        while self.current_token.type in (MUL, DIV, CARRET, AMPERSAND, PIPE):
+        while self.current_token.type in (MUL, DIV):
             token = self.current_token
             if token.type == MUL:
                 self.eat(MUL)
             elif token.type == DIV:
                 self.eat(DIV)
-            elif token.type == CARRET:
-                self.eat(CARRET)
-            elif token.type == AMPERSAND:
-                self.eat(AMPERSAND)
-            elif token.type == PIPE:
-                self.eat(PIPE)
             node = BinOp(left=node, op=token, right=self.factor())
 
         return node
+    #lower priority calls the higher priority
 
     def expr(self):
         """
@@ -248,21 +255,55 @@ class Parser(object):
         """
         node = self.term()
 
-        while self.current_token.type in (PLUS, MINUS, TILDA):
+        while self.current_token.type in (PLUS, MINUS):
             token = self.current_token
             if token.type == PLUS:
                 self.eat(PLUS)
             elif token.type == MINUS:
                 self.eat(MINUS)
-            elif token.type == TILDA:
-                self.eat(TILDA)
+            
 
             node = BinOp(left=node, op=token, right=self.term())
 
         return node
 
-    def parse(self):
+    def shift(self):
         node = self.expr()
+        while self.current_token.type in (LEFTSHIFT, RIGHTSHIFT):
+            token = self.current_token
+            if token.type == LEFTSHIFT:
+                self.eat(LEFTSHIFT)
+            elif token.type == RIGHTSHIFT:
+                self.eat(RIGHTSHIFT)
+            node = BinOp(left=node, op=token, right=self.expr())
+        return node
+
+    def bitwise_AND(self):
+        node = self.shift()
+        while self.current_token.type == AMPERSAND:
+            token = self.current_token
+            self.eat(AMPERSAND)
+            node = BinOp(left=node, op=token, right=self.shift())
+        return node   
+
+    def bitwise_XOR(self):
+        node = self.bitwise_AND()
+        while self.current_token.type == CARRET:
+            token = self.current_token
+            self.eat(CARRET)
+            node = BinOp(left=node, op=token, right=self.bitwise_AND())
+        return node
+
+    def bitwise_OR(self):
+        node = self.bitwise_XOR()
+        while self.current_token.type == PIPE:
+            token = self.current_token
+            self.eat(PIPE)
+            node = BinOp(left=node, op=token, right=self.bitwise_XOR())
+        return node
+
+    def parse(self):
+        node = self.bitwise_OR()
         if self.current_token.type != EOF:
             self.error()
         return node
@@ -305,6 +346,10 @@ class Interpreter(NodeVisitor):
             return self.visit(node.left) & self.visit(node.right)
         elif node.op.type == PIPE:
             return self.visit(node.left) | self.visit(node.right)
+        elif node.op.type == LEFTSHIFT:
+            return self.visit(node.left) << self.visit(node.right)
+        elif node.op.type == RIGHTSHIFT:
+            return self.visit(node.left) >> self.visit(node.right)
     def visit_Num(self, node):
         return node.value
 
@@ -315,7 +360,7 @@ class Interpreter(NodeVisitor):
         elif op == MINUS:
             return -self.visit(node.expr)
         elif op == TILDA:
-            return -1*self.visit(node.expr)
+            return ~self.visit(node.expr)
 
     def interpret(self):
         tree = self.parser.parse()
