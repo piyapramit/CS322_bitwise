@@ -93,6 +93,7 @@ class Lexer(object):
             self.error('Expected numeric value at position {pos:d}, received \'.\''.format(pos=starting_pos))
         return Token(INTEGER, int(result)) if is_int else Token(FLOAT, float(result))
 
+# Added the bitwise operations to the lexical analyzer
     def get_next_token(self):
         """Lexical analyzer (also known as scanner or tokenizer)
 
@@ -213,10 +214,11 @@ class Parser(object):
         else:
             self.error()
 
+# Added tilda to factor
     def factor(self):
         """factor : (PLUS | MINUS) factor | INTEGER | FLOAT | LPAREN expr RPAREN"""
         token = self.current_token
-        if token.type == PLUS or token.type == MINUS or token.type == TILDA: #or token.type == CARRET or token.type == AMPERSAND:
+        if token.type == PLUS or token.type == MINUS or token.type == TILDA:
             self.eat(token.type)
             node = UnaryOp(token, self.factor())
             return node
@@ -232,6 +234,7 @@ class Parser(object):
             self.eat(RPAREN)
             return node
 
+# Add carret ampersand and pipe to term
     def term(self):
         """term : factor ((MUL | DIV) factor)*"""
         node = self.factor()
@@ -331,6 +334,7 @@ class Interpreter(NodeVisitor):
     def __init__(self, parser):
         self.parser = parser
 
+# Add actual bitwise arithmetic to logic
     def visit_BinOp(self, node):
         if node.op.type == PLUS:
             return self.visit(node.left) + self.visit(node.right)
@@ -353,6 +357,7 @@ class Interpreter(NodeVisitor):
     def visit_Num(self, node):
         return node.value
 
+# Added tilda to unaryOp
     def visit_UnaryOp(self, node):
         op = node.op.type
         if op == PLUS:
